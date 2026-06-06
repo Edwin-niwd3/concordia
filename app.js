@@ -24,6 +24,29 @@ async function callClaudeAPI(messages) {
 const AUTH_CONFIG = {
   googleClientId: ""
 };
+// GitHub Pages is static hosting — there is no Node/process.env, so we fetch the
+// .env file at runtime and parse it in the browser. NOTE: a Google OAuth Client
+// ID is a PUBLIC identifier (it ships in every page), so exposing it is fine.
+// Never put real secrets in a file served by GitHub Pages.
+async function loadEnv() {
+  try {
+    const res = await fetch("./.env", {
+      cache: "no-store"
+    });
+    if (!res.ok) return;
+    (await res.text()).split(/\r?\n/).forEach(line => {
+      line = line.trim();
+      if (!line || line.startsWith("#")) return;
+      const eq = line.indexOf("=");
+      if (eq < 0) return;
+      const key = line.slice(0, eq).trim(),
+        val = line.slice(eq + 1).trim().replace(/^['"]|['"]$/g, "");
+      if (/^google_?client_?id$/i.test(key)) AUTH_CONFIG.googleClientId = val
+    })
+  } catch (e) {
+    console.warn("Could not load .env", e)
+  }
+}
 let USER = null,
   STORAGE_OK = !1;
 try {
@@ -126,6 +149,7 @@ function setUser(u) {
   chip.innerHTML = `<span class="uname">${u.name}</span><span class="user-avatar">${av}</span><button class="signout-btn" onclick="signOut()">Sign out</button>`, chip.classList.remove("hidden"), document.getElementById("authOverlay").classList.add("hidden"), renderHistory(), renderHome()
 }
 async function initAuth() {
+  await loadEnv();
   const saved = storeGet("mh_user");
   if (saved) try {
     const u = JSON.parse(saved);
